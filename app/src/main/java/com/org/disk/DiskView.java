@@ -11,7 +11,10 @@ import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.ClipDrawable;
 import android.os.CountDownTimer;
+import android.os.Handler;
+import android.os.Message;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,12 +24,15 @@ import android.view.animation.RotateAnimation;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 /**
  * Created by huchen on 16/5/5.
  */
 public class DiskView extends RelativeLayout {
 
-    private ImageView diskIv, pointerIv;
+    private ImageView diskIv, pointerIv, indicator;
 
     private ObjectAnimator mDiskAnimator;
     private RotateAnimation mPointerAnmator;
@@ -45,6 +51,18 @@ public class DiskView extends RelativeLayout {
 
     private MyThread myThread = new MyThread();
 
+    final Timer timer = new Timer();
+
+    ClipDrawable clipDrawable;
+
+    final Handler handler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            if (msg.what == 0x1233) {
+                clipDrawable.setLevel(clipDrawable.getLevel() + 30);
+            }
+        }
+    };
 
     public DiskView(Context context) {
         super(context);
@@ -65,6 +83,8 @@ public class DiskView extends RelativeLayout {
         LayoutInflater.from(context).inflate(R.layout.disk_view, this, true);
         diskIv = (ImageView) findViewById(R.id.disk);
         pointerIv = (ImageView) findViewById(R.id.pointer);
+        indicator = (ImageView) findViewById(R.id.indicator);
+        clipDrawable = (ClipDrawable) indicator.getDrawable();
 
         mDiskAnimator = ObjectAnimator.ofFloat(diskIv, "rotation", 0f, 360f);
         mDiskAnimator.setRepeatCount(ValueAnimator.INFINITE);
@@ -97,10 +117,11 @@ public class DiskView extends RelativeLayout {
         mPaint = new Paint();
         mPath = new Path();
 
-        mPaint.reset();
-        mPaint.setStyle(Paint.Style.STROKE);
-        mPaint.setColor(Color.GREEN);
-        setWillNotDraw(false);
+        mPaint = new Paint();
+        mPaint.setAntiAlias(true);
+        mPaint.setColor(Color.BLUE);
+        mPaint.setStyle(Paint.Style.FILL);
+//        setWillNotDraw(false);
     }
 
     @Override
@@ -111,18 +132,44 @@ public class DiskView extends RelativeLayout {
     private int indexY = 0;
     private int temp = 0;
 
+    // 圆心x坐标
+    private int mXCenter;
+    // 圆心y坐标
+    private int mYCenter;
+
+    // 圆环半径
+    private float mRingRadius;
+
+    // 半径
+    private float mRadius;
+
+    private int mProgress = 2;
+
     @Override
     protected void onDraw(Canvas canvas) {
 
+        mXCenter = getWidth() / 2;
+        mYCenter = getHeight() / 2;
 
-        temp += 20;
+        mProgress++;
+        if (mProgress > 0) {
+            RectF oval = new RectF();
+            oval.left = (mXCenter - mRingRadius);
+            oval.top = (mYCenter - mRingRadius);
+            oval.right = mRingRadius * 2 + (mXCenter - mRingRadius);
+            oval.bottom = mRingRadius * 2 + (mYCenter - mRingRadius);
+            canvas.drawArc(oval, -90, ((float) mProgress / 100) * 360, false, mPaint); //
+        }
 
-        mPath.moveTo(x, y);
-        mPath.quadTo(x, y, x - temp, y + temp);
-        canvas.drawPath(mPath, mPaint);
 
-        x -= temp;
-        y += temp;
+//        temp += 20;
+//
+//        mPath.moveTo(x, y);
+//        mPath.quadTo(x, y, x - temp, y + temp);
+//        canvas.drawPath(mPath, mPaint);
+//
+//        x -= temp;
+//        y += temp;
         postInvalidateDelayed(100);
 
     }
@@ -150,6 +197,19 @@ public class DiskView extends RelativeLayout {
             mDiskAnimator.start();
 
             pointerIv.startAnimation(mPointerAnmator);
+
+            final Timer timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    Message msg = new Message();
+                    msg.what = 0x1233;
+                    handler.sendMessage(msg);
+                    if (clipDrawable.getLevel() >= 10000) {
+                        timer.cancel();
+                    }
+                }
+            }, 0, 50);
 
             resetStatus();
 
